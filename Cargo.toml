@@ -8,4 +8,8 @@ license-file = "LICENSE"
 readme = "README.md"
 categories = ["development-tools"]
 keywords = ["zen"]
+authors = ["Willy Micieli"]
 [dependencies]
+cargo_metadata = "0.18.1"
+chrono = "0.4.38"
+inquire = "0.7.5"
