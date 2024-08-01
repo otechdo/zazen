@@ -2,5 +2,10 @@
 name = "zazen"
 version = "0.1.0"
 edition = "2021"
-
+description = "A tool like zen"
+repository=  "https://github.com/otechdo/zazen"
+license-file = "LICENSE"
+readme = "README.md"
+categories = ["development-tools"]
+keywords = ["zen"]
 [dependencies]

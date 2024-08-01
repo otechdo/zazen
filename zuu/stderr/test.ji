@@ -1,0 +1,3 @@
+   Compiling zazen v0.1.0 (/home/otechdo/Documents/GitHub/zazen)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.49s
+     Running unittests src/main.rs (target/debug/deps/zazen-9e8e93d23a43563b)
