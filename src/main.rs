@@ -662,7 +662,9 @@ fn get_commit_types() -> String {
         }
     }
     let x: Vec<&str> = t.split(':').collect();
-    (*x.first().unwrap()).to_string()
+    let mut s: String = String::from("\n");
+    s.push_str((*x.first().unwrap()).to_string().as_str());
+    s
 }
 
 fn commit_summary() -> String {
@@ -698,7 +700,7 @@ fn commit_why() -> String {
             println!("The reasoning behind the change must be contains less than 50 chararacter");
             continue;
         }
-        why.push_str(format!("\n\t* {w}").as_str());
+        why.push_str(format!("\n\t\t* {w}").as_str());
         if confirm("Continue to write the changes : ", false) {
             continue;
         }
