@@ -14,8 +14,7 @@ use std::path::MAIN_SEPARATOR_STR;
 use std::process::{Command, ExitCode};
 use walkdir::WalkDir;
 
-const COMMIT_TEMPLATE: &str = "%type%(%scope%): %summary%\n\n\tThe following changes were made :\n\n%why%\n\n%footer%\n\nAuthored by : %author% <%email%>";
-
+const COMMIT_TEMPLATE: &str = "%type%(%scope%): %summary%\n\n\tThe following changes were made :\n\n%why%\n\n%footer%\n\nAuthored by : %author% <%email%>\n";
 const CRATES_PATH: &str = "CRATES_PATH";
 const INIT: &str = "Init flow";
 const COMMIT: &str = "Add a commit";
@@ -1117,7 +1116,7 @@ fn logs(path: &str) -> bool {
     for (_i, oid) in revwalk.enumerate().take(5) {
         let commit: Commit<'_> = repo.find_commit(oid.expect("msg")).expect("msg");
         let message = commit.message().unwrap_or("No commit message");
-        println!("{message}");
+        println!("\n{message}\n");
     }
     true
 }
