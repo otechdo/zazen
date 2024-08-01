@@ -2,8 +2,8 @@
 
 use cargo_metadata::MetadataCommand;
 use chrono::Utc;
+use git2::{BranchType, Branches, Repository, StatusOptions};
 use inquire::{Confirm, MultiSelect, Select, Text};
-use std::collections::HashMap;
 use std::env::consts::OS;
 use std::fs::{self, read_to_string, remove_file, File};
 use std::io::Write;
@@ -11,14 +11,16 @@ use std::path::Path;
 use std::path::MAIN_SEPARATOR_STR;
 use std::process::{Command, ExitCode};
 
+const DEFAULT_PATH: &str = ".";
 const COMMIT_TEMPLATE: &str = "%type% (%scope%): %summary%\n\nThe following changes were made :\n\n%why%\n\nAuthored by : %author% <%mail%>";
+
 const INIT: &str = "Init flow";
 const COMMIT: &str = "Write a commit message";
 const STASH: &str = "Stash modification";
 const BLAME: &str = "Show blame";
 const SEND_TO_REMOTE: &str = "Send to remote";
 const PULL: &str = "Get modifications from the remote";
-const PULL_REQUESTS: &str = "Management of your pull request";
+const LIST_PULL_REQUESTS: &str = "List of your pull request";
 const RENAME_REPOSITORY: &str = "Rename the repository";
 const CREATE_PULL_REQUEST: &str = "Create a pull request";
 const UPDATE_PULL_REQUEST_BRANCH: &str = "Update a pull request branch";
@@ -28,6 +30,7 @@ const REFRESH_CREDENTIALS: &str = "Refresh crendentials";
 const BROWSE: &str = "Open repository on default browser";
 const SHOW_BRANCHES: &str = "Show branches";
 const CLONE_GIST: &str = "Clone a gist";
+const CLONE_REPO: &str = "Clone a repository";
 const CREATE_GIST: &str = "Create a gist";
 const DELETE_GIST: &str = "Delete a gist";
 const EDIT_GIST: &str = "Edit a gist";
@@ -48,7 +51,7 @@ const DELETE_ISSUES: &str = "Delete a gist";
 const EDIT_ISSUES: &str = "Edit issues";
 const LIST_ISSUES: &str = "List issues";
 const PIN_ISSUES: &str = "Pin an issues";
-const UnPIN_ISSUES: &str = "Unpin an issue";
+const UN_PIN_ISSUES: &str = "Unpin an issue";
 const REOPEN_ISSUES: &str = "Reopen issue";
 const STATUS_ISSUES: &str = "Show status of a relevant issues";
 const TRANSFER_ISSUE: &str = "Transfer issue to another repository";
@@ -58,7 +61,7 @@ const LOCK_ISSUE: &str = "Lock issue conversation";
 const UNLOCK_ISSUE: &str = "Unlock issue conversation";
 const COMMENT_ISSUE: &str = "Add a comment to an issue";
 const GPG_KEY: &str = "Manage gpg key";
-const REMOVE_BRANCHE: &str = "Remove a branch";
+const REMOVE_BRANCHES: &str = "Remove branches";
 const SHOW_STATS: &str = "Show stats";
 const SHOW_DIFF: &str = "Show diff";
 const SHOW_LOGS: &str = "Show logs";
@@ -76,7 +79,84 @@ const SHOW_STATUS: &str = "Display workflow status";
 const START_FEATURE: &str = "Start a new feature";
 const REMOVE_FEATURE: &str = "Remove a feature";
 const FINISH_FEATURE: &str = "Finnish a feature";
+const START_HOTFIX: &str = "Start a new hotfix";
+const REMOVE_HOTFIX: &str = "Remove a hotfix";
+const FINISH_HOTFIX: &str = "Finnish a hotfix";
+const START_REALEASE: &str = "Start a new release";
+const REMOVE_RELEASE: &str = "Remove a release";
+const FINISH_RELEASE: &str = "Finnish a release";
 
+const OPTIONS: [&str; 69] = [
+    INIT,
+    COMMIT,
+    STASH,
+    BLAME,
+    SEND_TO_REMOTE,
+    PULL,
+    LIST_PULL_REQUESTS,
+    UPDATE_PULL_REQUEST_BRANCH,
+    CREATE_PULL_REQUEST,
+    LOGIN,
+    LOGOUT,
+    REFRESH_CREDENTIALS,
+    BROWSE,
+    SHOW_BRANCHES,
+    CLONE_GIST,
+    CLONE_REPO,
+    CREATE_GIST,
+    DELETE_GIST,
+    LIST_GIST,
+    VIEW_GIST,
+    RENAME_GIST,
+    RELEASE_CREATE,
+    RELEASE_DELETE,
+    RELEASE_DELETE_ASSETS,
+    RELEASE_EDIT,
+    RELEASE_LIST,
+    RELEASE_DOWNLOAD,
+    RELEASE_UPLOAD,
+    RELEASE_VIEW,
+    PIN_ISSUES,
+    LOCK_ISSUE,
+    LOCK_ISSUE,
+    CLOSE_ISSUE,
+    UN_PIN_ISSUES,
+    EDIT_ISSUES,
+    REOPEN_ISSUES,
+    LIST_ISSUES,
+    REOPEN_ISSUES,
+    STATUS_ISSUES,
+    COMMENT_ISSUE,
+    TRANSFER_ISSUE,
+    RENAME_REPOSITORY,
+    RENAME_GIST,
+    GPG_KEY,
+    REMOVE_BRANCHES,
+    SHOW_BRANCHES,
+    UPDATE_PULL_REQUEST_BRANCH,
+    SHOW_LOGS,
+    SHOW_DIFF,
+    SHOW_STATS,
+    SHOW_STATUS,
+    LIST_WORKFLOW,
+    CANCEL_WORKFLOW,
+    WATCH_WORKFLOW,
+    RERUN_WORKFLOW,
+    VIEW_WORKFLOW,
+    DELETE_WORKFLOW_CACHE,
+    REMOVE_WORKFLOW,
+    DOWNLOAD_WORKFLOW,
+    LIST_WORKFLOW_CACHE,
+    REMOVE_FEATURE,
+    START_FEATURE,
+    FINISH_FEATURE,
+    REMOVE_HOTFIX,
+    START_HOTFIX,
+    FINISH_HOTFIX,
+    START_REALEASE,
+    FINISH_RELEASE,
+    REMOVE_RELEASE,
+];
 const DEV_BRANCH: &str = "develop";
 const FEATURE_BRANCH_PREFIX: &str = "feature";
 
@@ -1029,6 +1109,15 @@ fn update() -> bool {
         .success()
 }
 
+fn stash_apply(path: &str, index: usize) {
+    let mut repo: Repository = open(path);
+    repo.stash_apply(index, None).expect("msg");
+}
+fn stash_drop(path: &str, index: usize) {
+    let mut repo: Repository = open(path);
+    repo.stash_drop(index).expect("Failed to drop a stash");
+}
+
 fn remove_dependencies() -> bool {
     let dependencies = MultiSelect::new("Select dependencies to remove : ", dependencies())
         .prompt()
@@ -1076,106 +1165,82 @@ fn publish() -> bool {
         .success()
 }
 
-fn send() -> bool {
-    Command::new("git")
-        .arg("push")
-        .arg("origin")
-        .arg("--all")
-        .current_dir(".")
-        .spawn()
-        .expect("git")
-        .wait()
-        .unwrap()
-        .success()
-        && Command::new("git")
-            .arg("push")
-            .arg("origin")
-            .arg("--tags")
-            .current_dir(".")
-            .spawn()
-            .expect("git")
-            .wait()
-            .unwrap()
-            .success()
+fn send(path: &str) {
+    let repo: Repository = open(path);
+    let mut remote_names: Vec<String> = Vec::new();
+
+    // Iterate over all configured remotes
+    for remote_name in repo.remotes().expect("No remote has been founded").iter() {
+        let remote_name = remote_name.unwrap_or_default(); // Handle optional remote names
+        remote_names.push(String::from(remote_name));
+    }
+
+    for remote_name in &remote_names {
+        let mut remote = repo.find_remote(remote_name).expect("Failed to get remote");
+
+        // Update remote refs to get latest changes
+        remote
+            .fetch(&["HEAD"], None, None)
+            .expect("Failed to fetch");
+        remote
+            .push(&["refs/heads/*:refs/heads/*"], None)
+            .expect("msg");
+    }
 }
-fn status() -> bool {
-    Command::new("git")
-        .arg("status")
-        .current_dir(".")
-        .spawn()
-        .expect("git")
-        .wait()
-        .unwrap()
-        .success()
+fn show_status(path: &str) {
+    let repo: Repository = open(path);
+    let mut opts = StatusOptions::new();
+    opts.include_ignored(false) // Exclude ignored files (optional)
+        .include_untracked(true) // Include untracked files
+        .recurse_untracked_dirs(true); // Recurse into untracked directories
+
+    let statuses = repo
+        .statuses(Some(&mut opts))
+        .expect("Failed to get status");
+
+    for entry in &statuses {
+        let path = entry.path().unwrap_or("unknown");
+        let status = entry.status();
+        println!("{}: {:?}", path, status);
+    }
 }
-fn options() -> HashMap<String, Flow> {
-    let mut options: HashMap<String, Flow> = HashMap::new();
-    options.insert(INIT.to_string(), Flow::Init);
-    options.insert(STASH.to_string(), Flow::Stash);
-    options.insert(START_FEATURE.to_string(), Flow::StartFeature);
-    options.insert(REMOVE_FEATURE.to_string(), Flow::RemoveFeature);
-    options.insert(FINISH_FEATURE.to_string(), Flow::FinnishFeature);
-    options.insert(COMMIT.to_string(), Flow::Commit);
-    options.insert(SHOW_DIFF.to_string(), Flow::Diff);
-    options.insert(GENERATE_CHANGE_LOG.to_string(), Flow::ChangeLogGeneration);
-    options.insert(SHOW_BRANCHES.to_string(), Flow::ShowBranches);
-    options.insert(REMOVE_BRANCHE.to_string(), Flow::RemoveBranches);
-    options.insert(SHOW_LOGS.to_string(), Flow::ShowLog);
-    options.insert(SHOW_STATS.to_string(), Flow::Stats);
-    options.insert(BLAME.to_string(), Flow::Blame);
-    options.insert(PULL.to_string(), Flow::Pull);
-    options.insert(SEND_TO_REMOTE.to_string(), Flow::Push);
+fn options() -> Vec<String> {
+    let mut options: Vec<String> = Vec::new();
+    for option in OPTIONS {
+        options.push(option.to_string());
+    }
     options
 }
 impl Flow {
     pub fn menu() -> String {
-        let options: Vec<String> = options().keys().map(String::from).collect();
-        Select::new("message", options).prompt().unwrap()
+        Select::new("Select an option below : ", options().to_vec())
+            .prompt()
+            .unwrap()
     }
 }
 fn flow(zuu: bool) -> ExitCode {
     if zuu.eq(&false) {
         return ExitCode::FAILURE;
     }
-
     match Flow::menu().as_str() {
-        COMMIT => {
-            assert!(prepare_commit());
-        }
-        SEND_TO_REMOTE => {
-            assert!(send());
-        }
         _ => {}
     }
     ExitCode::SUCCESS
 }
 
-fn stash_branch() -> bool {
-    assert!(stash());
-    let feat = ask("Enter the feature name");
-    Command::new("git")
-        .arg("stash")
-        .arg("branch")
-        .arg(feat.as_str())
-        .current_dir(".")
-        .spawn()
-        .expect("git")
-        .wait()
-        .unwrap()
-        .success()
-}
+fn tags(path: &str) -> Vec<String> {
+    let repo = open(path);
+    let mut tags: Vec<String> = Vec::new();
 
-fn tags() -> bool {
-    Command::new("git")
-        .arg("tag")
-        .arg("--list")
-        .arg("--sort=-taggerdate")
-        .arg("--format=%(refname:short) | %(objectname) | %(taggerdate:short) | %(subject)")
-        .spawn()
-        .expect("git")
-        .wait()
-        .unwrap()
-        .success()
+    // Get an iterator over all tags in the repository
+    let tag_names = repo.tag_names(None).expect("NO tags");
+
+    // Iterate and print each tag name
+    for tag_name in &tag_names {
+        let tag_name = tag_name.unwrap_or("<unnamed>");
+        tags.push(tag_name.to_string());
+    }
+    tags
 }
 
 fn delete_tag() -> bool {
@@ -1191,27 +1256,62 @@ fn delete_tag() -> bool {
         .success()
 }
 
-fn display_branches() -> bool {
-    Command::new("git")
-        .arg("show-branch")
-        .spawn()
-        .expect("git")
-        .wait()
-        .unwrap()
-        .success()
+fn current_branch(path: &str) -> String {
+    let mut name: String = String::new();
+    let r: Repository = open(path);
+    let head = r.head().expect("msg");
+    if head.is_branch() {
+        name = head.shorthand().unwrap_or("detached HEAD").to_string();
+    }
+    name
+}
+fn show_current_branches(path: &str) {
+    println!("* {}", current_branch(path));
 }
 
-fn logs() -> bool {
-    Command::new("git")
-        .arg("log")
-        .current_dir(".")
-        .spawn()
-        .expect("git")
-        .wait()
-        .unwrap()
-        .success()
+fn remove_branches(path: &str) {
+    let branches: Vec<String> = MultiSelect::new("Select branches to delete : ", branches(path))
+        .prompt()
+        .unwrap();
+    for branch in &branches {
+        assert!(remove_branch(branch));
+    }
+}
+fn branches(path: &str) -> Vec<String> {
+    let repo: Repository = open(path);
+    let mut branches: Vec<String> = Vec::new();
+    let all_branches: Branches = repo.branches(Some(BranchType::Local)).expect("msg");
+    for branch in all_branches {
+        let (branch, _) = branch.expect("msg");
+        let branch_name = branch
+            .name()
+            .expect("Failed to get branch name")
+            .unwrap_or("<unnamed>");
+        branches.push(branch_name.to_string());
+    }
+    branches
 }
 
-fn main() {
-    flow(zuu());
+fn open(path: &str) -> Repository {
+    Repository::open(path).expect("Not a git repository")
+}
+
+fn logs(path: &str) {
+    let repo = open(path);
+    let mut revwalk = repo.revwalk().expect("msg"); // Create a Revwalk object to iterate through commits
+    revwalk.push_head().expect("msg"); // Start from the HEAD commit
+
+    for oid in revwalk {
+        let oid = oid.expect("Failed to get commit id"); // Get the commit ID
+        let commit = repo.find_commit(oid).expect("Failed to get commit object"); // Find the commit object
+        println!("Commit: {}", oid);
+        println!("Commit: {}", oid);
+        println!("Author: {}", commit.author());
+        println!("Date: {}", commit.time().seconds());
+        println!("Message:\n{}", commit.message().unwrap_or("No message"));
+        println!("--------------------");
+    }
+}
+fn main() -> ExitCode {
+    flow(zuu())
 }
