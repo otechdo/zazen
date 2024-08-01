@@ -1073,7 +1073,6 @@ fn flow(z: bool) -> ExitCode {
             unreachable!();
         }
     }
-    println!("{todo}");
     ExitCode::SUCCESS
 }
 
