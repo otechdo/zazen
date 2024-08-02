@@ -2,8 +2,10 @@
 
 use cargo_metadata::MetadataCommand;
 use chrono::Utc;
+use colored::Colorize;
 use git2::{
-    BranchType, Branches, Commit, Index, Repository, Revwalk, Status, StatusOptions, Statuses,
+    BranchType, Branches, Commit, Diff, DiffFormat, DiffOptions, DiffStats, Index, Repository,
+    Revwalk, Status, StatusOptions, Statuses,
 };
 use inquire::{Confirm, MultiSelect, Select, Text};
 use std::env::consts::OS;
@@ -14,7 +16,7 @@ use std::path::MAIN_SEPARATOR_STR;
 use std::process::{Command, ExitCode};
 use walkdir::WalkDir;
 
-const COMMIT_TEMPLATE: &str = "%type%(%scope%): %summary%\n\n\tThe following changes were made :\n\n%why%\n\n%footer%\n\nAuthored by : %author% <%email%>\n";
+const COMMIT_TEMPLATE: &str = "%type%(%scope%): %summary%\n\n\tThe following changes were made :\n\n%why%\n\n%footer%\n\n\tAuthored by\n\t\t%author% <%email%>\n";
 const CRATES_PATH: &str = "CRATES_PATH";
 const INIT: &str = "Init flow";
 const COMMIT: &str = "Add a commit";
@@ -249,7 +251,41 @@ fn check_commit(sentence: &str) -> bool {
     }
     arrange_commit()
 }
+fn print_diff(diff: &Diff<'_>) -> Result<(), git2::Error> {
+    let stats: DiffStats = diff.stats().expect("msg");
+    let x = diff.print(DiffFormat::Patch, |_delta, _hunk, line| {
+        let origin = line.origin();
+        let content: String = String::from_utf8_lossy(line.content()).into_owned();
+        match origin {
+            '-' => print!("{} {}", "-".red(), content.red()),
+            '+' => print!("{} {}", "+".green(), content.green()),
+            '@' => print!("  {}", content.cyan()),
+            _ => print!("  {content}"),
+        }
+        true // Continue iterating
+    });
 
+    print!(
+        "\n  {} files changed, {} insertions(+), {} deletion(-)\n",
+        stats.files_changed() - 1,
+        stats.insertions(),
+        stats.deletions(),
+    );
+    x
+}
+fn diff(path: &str) -> bool {
+    let repo: Repository = open(path);
+    let mut opts: DiffOptions = DiffOptions::new();
+    let changes: Diff<'_> = repo
+        .diff_index_to_workdir(
+            None,
+            Some(&mut opts.include_untracked(true).recurse_untracked_dirs(true)),
+        )
+        .expect("msg");
+    assert!(print_diff(&changes).is_ok());
+
+    true
+}
 fn add(path: &str) -> Option<Index> {
     let repo: Repository = open(path);
     let statuses: Statuses<'_> = repo.statuses(None).expect("Failed to get status"); // Get repository status
@@ -292,6 +328,7 @@ fn msg(m: &str, r: &str) -> bool {
         .success()
 }
 fn commit(path: &str) -> bool {
+    assert!(diff(path));
     let index = add(path);
     if index.is_none() {
         return false;
@@ -1048,6 +1085,9 @@ fn flow(z: bool) -> ExitCode {
         }
         SHOW_LOGS => {
             assert!(logs(repo().as_str()));
+        }
+        SHOW_DIFF => {
+            assert!(diff(repo().as_str()));
         }
         CLONE_GIST => {
             assert!(gist());
