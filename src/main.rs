@@ -456,6 +456,9 @@ fn create_changelog() -> bool {
             .trim()
     )
     .expect("msg");
+    if Path::new("log").exists() {
+        fs::remove_file("log").expect("no log file");
+    }
     Path::new(filename.as_str()).exists()
 }
 
@@ -730,7 +733,7 @@ fn commit_why() -> String {
 fn commit_footer() -> String {
     let mut footer: String = String::new();
     if confirm("Code has breaking changes ?", false) {
-        footer.push_str("\n\tBREAKING CHANGE :\n");
+        footer.push_str("\n\tThe code break :\n");
         loop {
             let b = Text::new("Please enter the breaking change description: ")
                 .prompt()
@@ -743,6 +746,9 @@ fn commit_footer() -> String {
                 false,
             ) {
                 footer.push_str(format!("\n\t\t* {b}\n").as_str());
+                if confirm("Add a new description line ?", false).eq(&true) {
+                    continue;
+                }
                 break;
             }
         }
