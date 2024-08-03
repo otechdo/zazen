@@ -13,7 +13,7 @@ use std::fs::{self, read_to_string, File};
 use std::io::Write;
 use std::path::Path;
 use std::path::MAIN_SEPARATOR_STR;
-use std::process::{Command, ExitCode};
+use std::process::Command;
 use walkdir::WalkDir;
 
 const COMMIT_TEMPLATE: &str = "%type%(%scope%): %summary%\n\n\tThe following changes were made :\n\n%why%\n\n%footer%\n\n\tAuthored by :\n\n\t\t* %author% <%email%> the %date%\n";
@@ -283,7 +283,6 @@ fn diff(path: &str) -> bool {
         )
         .expect("msg");
     assert!(print_diff(&changes).is_ok());
-
     true
 }
 fn add(path: &str) -> Option<Index> {
@@ -374,12 +373,12 @@ fn program_or_lib() -> String {
         String::from("software")
     }
 }
-fn create_changelog() -> bool {
+fn create_changelog(r: &str) -> bool {
     if Path::new("./logs").is_dir().eq(&false) {
         fs::create_dir_all("./logs").expect("msg");
     }
     let filename = format!(
-        "./logs{MAIN_SEPARATOR_STR}{}-{}-changes.md",
+        "{r}{MAIN_SEPARATOR_STR}logs{MAIN_SEPARATOR_STR}{}-{}-changes.md",
         project(),
         version()
     );
@@ -974,7 +973,8 @@ fn repositories() -> Vec<String> {
                 .expect("no parent")
                 .eq(Path::new(&starting_directory))
         {
-            repositories.push(entry.path().to_str().expect("msg").to_string());
+            let p = entry.path().to_str().expect("msg");
+            repositories.push(p.split(MAIN_SEPARATOR_STR).last().expect("msg").to_string());
         }
     }
     repositories
@@ -1002,116 +1002,104 @@ fn clone() -> bool {
         .success()
 }
 
-fn gist() -> bool {
-    let mut url: String;
-    loop {
-        url = Text::new("Please enter the gist url : ").prompt().unwrap();
-        if url.is_empty() {
-            continue;
-        }
-        break;
-    }
-    Command::new("git")
-        .arg("clone")
-        .arg("--quiet")
-        .arg(url)
-        .current_dir(std::env::var(CRATES_PATH).expect(CRATES_PATH).as_str())
-        .spawn()
-        .expect("missing info")
-        .wait()
-        .unwrap()
-        .success()
-}
-
 fn repo() -> String {
     Select::new("Select a repository to manage", repositories())
         .prompt()
         .unwrap()
 }
 
-fn display_branches() -> bool {
-    for branch in &branches(repo().as_str()) {
+fn display_branches(r: &str) -> bool {
+    for branch in &branches(r) {
         println!("{branch}");
     }
     true
 }
-fn display_status() -> bool {
-    show_status(repo().as_str());
+fn display_status(r: &str) -> bool {
+    show_status(r);
     true
 }
 
-fn remove_branches() -> bool {
-    let repo: String = repo();
-    let branches: Vec<String> =
-        MultiSelect::new("Select branch to remove", branches(repo.as_str()))
-            .prompt()
-            .unwrap();
+fn remove_branches(r: &str) -> bool {
+    let branches: Vec<String> = MultiSelect::new("Select branch to remove", branches(r))
+        .prompt()
+        .unwrap();
     for branch in &branches {
-        assert!(remove_branch(branch, repo.as_str()));
+        assert!(remove_branch(branch, r));
     }
     true
 }
-fn remove_tags() -> bool {
-    let repo: String = repo();
-    let tags: Vec<String> = MultiSelect::new("Select tags to remove", tags(repo.as_str()))
+fn remove_tags(r: &str) -> bool {
+    let tags: Vec<String> = MultiSelect::new("Select tags to remove", tags(r))
         .prompt()
         .unwrap();
     for tag in &tags {
-        assert!(remove_tag(tag, repo.as_str()));
+        assert!(remove_tag(tag, r));
     }
     true
 }
-fn flow(z: bool) -> ExitCode {
-    if z.eq(&false) {
-        if confirm("Your code contains errors, do you want recheck it ?", true).eq(&true) {
-            return flow(zuu());
+fn flow(z: bool, r: &str) {
+    loop {
+        clear();
+        let rrr: String = format!(
+            "{}{MAIN_SEPARATOR_STR}{r}",
+            std::env::var(CRATES_PATH).expect("CRATES_PATH no set")
+        );
+        if z.eq(&false) {
+            if confirm("Your code contains errors, do you want recheck it ?", true).eq(&true) {
+                return flow(zuu(), r);
+            }
+            break;
         }
-        return ExitCode::FAILURE;
+        let x: Option<String> = menu();
+        clear();
+        if x.is_none() {
+            break;
+        }
+        let todo: String = x.unwrap();
+        match todo.as_str() {
+            COMMIT => {
+                assert!(commit(rrr.as_str()));
+            }
+            QUIT => {
+                break;
+            }
+            CLONE_REPO => {
+                assert!(clone());
+            }
+            SHOW_LOGS => {
+                assert!(logs(rrr.as_str()));
+            }
+            SHOW_DIFF => {
+                assert!(diff(rrr.as_str()));
+            }
+            SHOW_STATUS => {
+                assert!(display_status(rrr.as_str()));
+            }
+            SEND_TO_REMOTE => {
+                assert!(send(repo().as_str()));
+            }
+            SHOW_BRANCHES => {
+                assert!(display_branches(rrr.as_str()));
+            }
+            REMOVE_BRANCHES => {
+                assert!(remove_branches(rrr.as_str()));
+            }
+            REMOVE_RELEASE => {
+                assert!(remove_tags(rrr.as_str()));
+            }
+            GENERATE_CHANGE_LOG => {
+                assert!(create_changelog(rrr.as_str()));
+            }
+            _ => {
+                unreachable!();
+            }
+        }
+        if confirm("Continue ?", true).eq(&false) {
+            clear();
+            break;
+        }
+        clear();
     }
-    let x: Option<String> = menu();
-    if x.is_none() {
-        return ExitCode::SUCCESS;
-    }
-    let todo: String = x.unwrap();
-    match todo.as_str() {
-        COMMIT => {
-            assert!(commit(repo().as_str()));
-        }
-        CLONE_REPO => {
-            assert!(clone());
-        }
-        SHOW_LOGS => {
-            assert!(logs(repo().as_str()));
-        }
-        SHOW_DIFF => {
-            assert!(diff(repo().as_str()));
-        }
-        CLONE_GIST => {
-            assert!(gist());
-        }
-        SHOW_STATUS => {
-            assert!(display_status());
-        }
-        SEND_TO_REMOTE => {
-            assert!(send(repo().as_str()));
-        }
-        SHOW_BRANCHES => {
-            assert!(display_branches());
-        }
-        REMOVE_BRANCHES => {
-            assert!(remove_branches());
-        }
-        REMOVE_RELEASE => {
-            assert!(remove_tags());
-        }
-        GENERATE_CHANGE_LOG => {
-            assert!(create_changelog());
-        }
-        _ => {
-            unreachable!();
-        }
-    }
-    ExitCode::SUCCESS
 }
 
 fn tags(path: &str) -> Vec<String> {
@@ -1150,13 +1138,13 @@ fn logs(path: &str) -> bool {
     let mut revwalk: Revwalk<'_> = repo.revwalk().expect("msg"); // Create a Revwalk object to iterate through commits
     revwalk.push_head().expect("msg"); // Start from the HEAD commit
 
-    for (_i, oid) in revwalk.enumerate().take(5) {
+    for (_i, oid) in revwalk.enumerate().take(50) {
         let commit: Commit<'_> = repo.find_commit(oid.expect("msg")).expect("msg");
         let message = commit.message().unwrap_or("No commit message");
         println!("\n{message}\n");
     }
     true
 }
-fn main() -> ExitCode {
-    flow(zuu())
+fn main() {
+    flow(zuu(), repo().as_str());
 }
