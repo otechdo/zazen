@@ -36,40 +36,97 @@ It's a tool to manage your git repositories
 - [Releases](https://github.com/otechdo/zazen/releases)
 - [Crates.io](https://crates.io/crates/zazen/0.1.0)
 
+- Pulsar(workflow): faster flow usage
+	- The following changes were made :
+		- improve the workflow
+	- Authored by :
+		- Willy Micieli <otechdo@otechdo.com> the 2024-08-03
+- Comet(log): clean log output
+	- The following changes were made :
+		- add missing tabulation
+		- change breaking title
+		- output format has been changed
+		- Fixes #1
+		- Closes #1
+	- Authored by :
+		- Willy Micieli <otechdo@otechdo.com> the 2024-08-03
+- Nebula(log): update output log
+	- The following changes were made :
+		- remove log file
+		- refactor titles
+		- add missing tabulations and new lines
+		- update the log output structure
+		- use better title
+		- Fixes #1
+		- Closes #1
+	- Authored by :
+		- Willy Micieli <otechdo@otechdo.com> the 2024-08-03
+- Comet(log output): add missing tabulations and new lines
+	- The following changes were made :
+		- better output
+		- more visual changes
+		- change log output format
+		- Fixes #1
+		- Closes #1
+	- Authored by :
+		- Willy Micieli <otechdo@otechdo.com> the 2024-08-03
+- Nebula(log output): add missing title for issues
+	- The following changes were made :
+		- use title to separate fixes part
+		- Fixes #1
+		- Closes #1
+	- Authored by :
+		- Willy Micieli <otechdo@otechdo.com> the 2024-08-03
+- Nebula(commit template): add missing : before new line
+	- The following changes were made :
+		- better log output style
+		- base style on cahnges were made style
+		- Fixes #1
+		- Closes #1
+	- Authored by :
+		- Willy Micieli <otechdo@otechdo.com> the 2024-08-03
+- Nebula(commit template): change the - to * character
+		- Nebula(commit template): change the - to  character
+	- The following changes were made :
+		- better display
+	- Authored by
+		- Willy Micieli <otechdo@otechdo.com> the 2024-08-03
+- Nebula(changelog): add commit output in change log
+	- The following changes were made :
+		- better output
+		- add commiter name and email
+		- add commiter date
+		- update description
+	- Authored by
+		- Willy Micieli <otechdo@otechdo.com> the 2024-08-03
 - Nebula(zazen): implement diff and updat commit log output
 	- The following changes were made :
 		- add new line after author
 		- add tabulation
 	- Authored by
-		- Willy Micieli <otechdo@otechdo.com>
 - Nebula(commit): refactor commit output
 	- The following changes were made :
 		- add new line at the end
 		- add newx line beetween message
 	- Authored by : Willy Micieli <otechdo@otechdo.com>
-		- Authored by : Willy Micieli <otechdo@otechdo.com>
 - Nebula(commit): arrange commit output
 	- The following changes were made :
 		- add new line before a new commit
 		- add missing tabulation
 	- Authored by : WIlly Micieli <otechdo@otechdo.com>
-		- Authored by : WIlly Micieli <otechdo@otechdo.com>
 - Nebula(commit): refactor commit template
 	- The following changes were made :
 		- clean commit output
 	- Authored by : WIlly Micieli <otechdo@otechdo.com>
-		- Authored by : WIlly Micieli <otechdo@otechdo.com>
 - Comet (ignore): add zen file in git ignore
 	- The following changes were made :
 		- add missing file in git iignore
 		- update ignored files
 	- Authored by : WIlly Micieli <otechdo@otechdo.com>
-		- Authored by : WIlly Micieli <otechdo@otechdo.com>
 - Comet (flow): remove unseless print
 	- The following changes were made :
 		- remove display before exit
 	- Authored by : WIlly Micieli <otechdo@otechdo.com>
-		- Authored by : WIlly Micieli <otechdo@otechdo.com>
 - Nebula (zazen): refactor source code
 	- The following changes were made :
 		- rename repository to zazen
@@ -77,7 +134,6 @@ It's a tool to manage your git repositories
 		- add git2
 		- clean code
 	- Authored by : WIlly Micieli <otechdo@otechdo.com>
-		- Authored by : WIlly Micieli <otechdo@otechdo.com>
 
 
 ## zazen

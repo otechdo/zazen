@@ -435,9 +435,6 @@ fn create_changelog(r: &str) -> bool {
             if line.contains("by") {
                 writeln!(f, "\t- {}", line.to_string().replace('*', "").trim()).expect("msg");
             }
-            if line.contains('@') {
-                writeln!(f, "\t\t- {}", line.to_string().replace('*', "").trim()).expect("msg");
-            }
             if line.contains('#') {
                 writeln!(f, "\t\t- {}", line.to_string().replace('*', "").trim()).expect("msg");
             }
