@@ -9,14 +9,14 @@ use git2::{
 };
 use inquire::{Confirm, MultiSelect, Select, Text};
 use std::env::consts::OS;
-use std::fs::{self, read_to_string, remove_file, File};
+use std::fs::{self, read_to_string, File};
 use std::io::Write;
 use std::path::Path;
 use std::path::MAIN_SEPARATOR_STR;
 use std::process::{Command, ExitCode};
 use walkdir::WalkDir;
 
-const COMMIT_TEMPLATE: &str = "%type%(%scope%): %summary%\n\n\tThe following changes were made :\n\n%why%\n\n%footer%\n\n\tAuthored by\n\t\t%author% <%email%>\n";
+const COMMIT_TEMPLATE: &str = "%type%(%scope%): %summary%\n\n\tThe following changes were made :\n\n%why%\n\n%footer%\n\n\tAuthored by\n\n\t\t- %author% <%email%> the %date%\n";
 const CRATES_PATH: &str = "CRATES_PATH";
 const INIT: &str = "Init flow";
 const COMMIT: &str = "Add a commit";
@@ -288,7 +288,7 @@ fn diff(path: &str) -> bool {
 }
 fn add(path: &str) -> Option<Index> {
     let repo: Repository = open(path);
-    let statuses: Statuses<'_> = repo.statuses(None).expect("Failed to get status"); // Get repository status
+    let statuses: Statuses<'_> = repo.statuses(None).expect("Failed to get status");
     let mut file_options: Vec<String> = Vec::new();
     for entry in &statuses {
         let status: Status = entry.status();
@@ -340,6 +340,7 @@ fn commit(path: &str) -> bool {
             .replace("%summary%", get_summary().as_str())
             .replace("%why%", get_why().as_str())
             .replace("%footer%", get_footer().as_str())
+            .replace("%date%", Utc::now().date_naive().to_string().as_str())
             .replace("%author%", name().as_str())
             .replace("%email%", email().as_str())
             .as_str(),
@@ -363,38 +364,6 @@ fn arrange_commit() -> bool {
     )
 }
 
-fn get_last_tag() -> String {
-    let tag: String = String::from_utf8(
-        Command::new("git")
-            .arg("describe")
-            .arg("--tags")
-            .arg("--abbrev=0")
-            .current_dir(".")
-            .output()
-            .unwrap()
-            .stdout,
-    )
-    .expect("Faile to find a TAG");
-    let data: Vec<&str> = tag.split('\n').collect();
-    (*data.first().expect("msg")).to_string()
-}
-fn get_log() -> String {
-    let log = File::create("log").expect("failed to create log");
-    let d = format!("{}..HEAD", get_last_tag());
-    assert!(Command::new("git")
-        .arg("log")
-        .arg("--format=fuller")
-        .arg(d.as_str())
-        .stdout(log)
-        .current_dir(".")
-        .spawn()
-        .unwrap()
-        .wait()
-        .unwrap()
-        .success());
-    read_to_string("log").expect("failed to parse file")
-}
-
 fn program_or_lib() -> String {
     if read_to_string("Cargo.toml")
         .expect("no cargo project")
@@ -414,9 +383,7 @@ fn create_changelog() -> bool {
         project(),
         version()
     );
-    let logs = get_log();
-    let lines = logs.lines();
-    let mut f = File::create(filename.as_str()).expect("failed to create file");
+    let mut f: File = File::create(filename.as_str()).expect("failed to create file");
     writeln!(
         f,
         "# 🚀 {} {} released\n\nToday the `{}`, we are very happy to present the **{}** version of our `{}` {} !\n\nThis release marks a significant step forward for our {} {}.\n\n## Demonstration\n\n{}\n\n## What it's?\n\nIt's {}\n\n## What we do ?\n\n- {}\n\n## Our team\n\n- {}\n\n## Links\n\n- [Source code]({})\n- [Home]({})\n- [Issues]({})\n- [Pull Request]({})\n- [Discussions]({})\n- [Wiki]({})\n- [Projects]({})\n- [Releases]({})\n- [Crates.io](https://crates.io/crates/{}/{})\n",
@@ -444,38 +411,54 @@ fn create_changelog() -> bool {
         version()
     )
     .expect("msg");
-    for t in commit_types_with_help() {
-        let ttt: Vec<&str> = t.split(':').collect();
-        let title: String = (*ttt.last().unwrap()).to_string();
-        writeln!(f, "###{title}\n").expect("msg");
-        for line in lines.clone() {
-            let current = (*ttt.first().unwrap()).to_string();
-            if line.contains(current.as_str()) {
-                let lll = line.split('\n');
-                for l in lll {
-                    let c = l.replace(ttt.first().unwrap(), "");
-                    let cc: Vec<&str> = c.split(':').collect();
-                    let ccc: Vec<&str> = cc.last().unwrap().split('\n').collect();
-                    let message = ccc.join("\n");
-                    writeln!(f, "\n  -{message}").expect("msg");
-                }
+    let repo: Repository = open(".");
+    let mut revwalk = repo.revwalk().expect("msg");
+    revwalk.push_head().expect("msg");
+    for oid in revwalk {
+        let oid = oid.expect("msg");
+        let commit = repo.find_commit(oid).expect("msg");
+        let message = commit.message().unwrap_or_default();
+        let relevant_lines: Vec<&str> = message.lines().collect();
+        for l in relevant_lines {
+            let line = l.trim();
+            if line.is_empty() {
+                continue;
+            }
+            if line.contains('(') {
+                writeln!(f, "- {line}").expect("msg");
+            }
+            if line.contains("The following changes were made :") {
+                writeln!(f, "\t- {line}").expect("msg");
+            }
+            if line.contains('*') {
+                writeln!(f, "\t\t- {}", line.to_string().replace('*', "").trim()).expect("msg");
+            }
+            if line.contains("by") {
+                writeln!(f, "\t- {}", line.to_string().replace('*', "").trim()).expect("msg");
+            }
+            if line.contains('@') {
+                writeln!(f, "\t\t- {}", line.to_string().replace('*', "").trim()).expect("msg");
+            }
+            if line.contains('#') {
+                writeln!(f, "\t\t- {}", line.to_string().replace('*', "").trim()).expect("msg");
             }
         }
     }
     writeln!(
         f,
-        "\n## README\n\n{}\n\n## LICENSE\n\n```\n{}\n```",
+        "\n\n{}\n\n```\n{}\n```\n",
         read_to_string(readme())
             .expect("readme file not founded")
-            .trim(),
+            .trim()
+            .replace('#', "##"),
         read_to_string(license())
             .expect("LICENSE file not founded")
             .trim()
     )
     .expect("msg");
-    remove_file("log").expect("failed to remove log");
     Path::new(filename.as_str()).exists()
 }
+
 fn issues() -> String {
     let mut x = repository();
     if x.contains("github") {

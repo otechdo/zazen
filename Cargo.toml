@@ -2,12 +2,13 @@
 name = "zazen"
 version = "0.1.0"
 edition = "2021"
-description = "A tool like zen"
-repository=  "https://github.com/otechdo/zazen"
+description = "a tool to manage your git repositories"
+repository = "https://github.com/otechdo/zazen"
+homepage = "https://github.com/otechdo/zazen/wiki"
 license-file = "LICENSE"
 readme = "README.md"
 categories = ["development-tools"]
-keywords = ["zen"]
+keywords = ["git", "cargo", "github", "commit", "management"]
 authors = ["Willy Micieli"]
 [dependencies]
 cargo_metadata = "0.18.1"
