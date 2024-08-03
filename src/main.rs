@@ -901,27 +901,24 @@ fn remove_tag(t: &str, r: &str) -> bool {
 }
 
 fn send(path: &str) -> bool {
-    let repo: Repository = open(path);
-    let mut remote_names: Vec<String> = Vec::new();
-
-    // Iterate over all configured remotes
-    for remote_name in &repo.remotes().expect("No remote has been founded") {
-        let remote_name = remote_name.unwrap_or_default(); // Handle optional remote names
-        remote_names.push(String::from(remote_name));
-    }
-
-    for remote_name in &remote_names {
-        let mut remote = repo.find_remote(remote_name).expect("Failed to get remote");
-
-        // Update remote refs to get latest changes
-        remote
-            .fetch(&["HEAD"], None, None)
-            .expect("Failed to fetch");
-        remote
-            .push(&["refs/heads/*:refs/heads/*"], None)
-            .expect("msg");
-    }
-    true
+    Command::new("git")
+        .arg("push")
+        .arg("--all")
+        .current_dir(path)
+        .spawn()
+        .expect("git")
+        .wait()
+        .unwrap()
+        .success()
+        && Command::new("git")
+            .arg("push")
+            .arg("--tags")
+            .current_dir(path)
+            .spawn()
+            .expect("git")
+            .wait()
+            .unwrap()
+            .success()
 }
 fn show_status(path: &str) {
     let repo: Repository = open(path);
@@ -1073,7 +1070,7 @@ fn flow(z: bool, r: &str) {
                 assert!(display_status(rrr.as_str()));
             }
             SEND_TO_REMOTE => {
-                assert!(send(repo().as_str()));
+                assert!(send(rrr.as_str()));
             }
             SHOW_BRANCHES => {
                 assert!(display_branches(rrr.as_str()));
