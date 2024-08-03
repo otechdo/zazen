@@ -36,6 +36,16 @@ It's a tool to manage your git repositories
 - [Releases](https://github.com/otechdo/zazen/releases)
 - [Crates.io](https://crates.io/crates/zazen/0.1.0)
 
+- Comet(send): fix git push not send
+	- The following changes were made :
+		- fix not send modifications
+	- Authored by :
+		- Willy Micieli <otechdo@otechdo.com> the 2024-08-03
+- Comet(log): remove duplicate author entry
+	- The following changes were made :
+		- regenerate changes log
+	- Authored by :
+		- Willy Micieli <otechdo@otechdo.com> the 2024-08-03
 - Pulsar(workflow): faster flow usage
 	- The following changes were made :
 		- improve the workflow
