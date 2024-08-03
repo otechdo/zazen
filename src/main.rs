@@ -730,7 +730,7 @@ fn commit_why() -> String {
 fn commit_footer() -> String {
     let mut footer: String = String::new();
     if confirm("Code has breaking changes ?", false) {
-        footer.push_str("\n\tBREAKING CHANGE :");
+        footer.push_str("\n\tBREAKING CHANGE :\n");
         loop {
             let b = Text::new("Please enter the breaking change description: ")
                 .prompt()
@@ -742,13 +742,13 @@ fn commit_footer() -> String {
                 format!("Use breaking change description : {b}").as_str(),
                 false,
             ) {
-                footer.push_str(format!("{b}\n").as_str());
+                footer.push_str(format!("\n\t\t* {b}\n").as_str());
                 break;
             }
         }
     }
     if confirm("Code has resolving issues ?", false) {
-        footer.push_str("\nThe commit resolve their issues :\n");
+        footer.push_str("\n\tThe commit resolve their issues :\n");
         loop {
             footer.push_str("\n\t\tFixes ");
             loop {
@@ -768,7 +768,7 @@ fn commit_footer() -> String {
         }
     }
     if confirm("Code close an issue ?", false) {
-        footer.push_str("\nThe commit close their issues :\n");
+        footer.push_str("\n\tThe commit close their issues :\n");
         loop {
             footer.push_str("\n\tCloses ");
             loop {
