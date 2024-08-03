@@ -730,7 +730,7 @@ fn commit_why() -> String {
 fn commit_footer() -> String {
     let mut footer: String = String::new();
     if confirm("Code has breaking changes ?", false) {
-        footer.push_str("BREAKING CHANGE: ");
+        footer.push_str("\n\tBREAKING CHANGE :");
         loop {
             let b = Text::new("Please enter the breaking change description: ")
                 .prompt()
@@ -742,37 +742,45 @@ fn commit_footer() -> String {
                 format!("Use breaking change description : {b}").as_str(),
                 false,
             ) {
-                footer.push_str(b.as_str());
+                footer.push_str(format!("{b}\n").as_str());
                 break;
             }
         }
     }
     if confirm("Code has resolving issues ?", false) {
+        footer.push_str("\nThe commit resolve their issues :\n");
         loop {
-            footer.push_str("\n\tFixes ");
-            let f = Text::new("Please enter the issue number : ")
-                .prompt()
-                .unwrap();
-            if f.is_empty() {
-                continue;
+            footer.push_str("\n\t\tFixes ");
+            loop {
+                let f = Text::new("Please enter the issue number : ")
+                    .prompt()
+                    .unwrap();
+                if f.is_empty() {
+                    continue;
+                }
+                footer.push_str(format!("#{f}\n").as_str());
+                break;
             }
-            footer.push_str(format!("#{f}\n").as_str());
             if confirm("Code resolving an other issues ?", false) {
                 continue;
             }
             break;
         }
     }
-    if confirm("Code resolve an issue ?", false) {
+    if confirm("Code close an issue ?", false) {
+        footer.push_str("\nThe commit close their issues :\n");
         loop {
             footer.push_str("\n\tCloses ");
-            let f = Text::new("Please enter the issue number : ")
-                .prompt()
-                .unwrap();
-            if f.is_empty() {
-                continue;
+            loop {
+                let f = Text::new("Please enter the issue number : ")
+                    .prompt()
+                    .unwrap();
+                if f.is_empty() {
+                    continue;
+                }
+                footer.push_str(format!("#{f}\n").as_str());
+                break;
             }
-            footer.push_str(format!("#{f}\n").as_str());
             if confirm("Code resolve an other issue ?", false) {
                 continue;
             }
