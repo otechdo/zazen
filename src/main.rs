@@ -14,12 +14,13 @@ use std::fs::{self, read_to_string, remove_file, File};
 use std::io::Write;
 use std::path::Path;
 use std::path::MAIN_SEPARATOR_STR;
-use std::process::Command;
+use std::process::{Command, Stdio};
 use std::thread::sleep;
 use std::time::Duration;
 use walkdir::WalkDir;
 const COMMIT_TEMPLATE: &str = "%type%(%scope%): %summary%\n\n\tThe following changes were made :\n\n%why%\n\n%footer%\n\n\tAuthored by :\n\n\t\t* %author% <%email%> the %date%\n";
 const CRATES_PATH: &str = "CRATES_PATH";
+const CRATES_EDITOR: &str = "CRATES_EDITOR";
 const INIT: &str = "Init flow";
 const CHECK_README_WORDS: &str = "Check readme words";
 const DISPLAY_README: &str = "Display readme";
@@ -93,6 +94,8 @@ const FINISH_RELEASE: &str = "Finnish a release";
 const PULL_RELEASE: &str = "Fetch a release";
 const PULL_HOTFIX: &str = "Fetch a hotfix";
 
+const OPEN_THE_PROJECT: &str = "Open the project";
+
 const README_FILES: [&str; 7] = [
     "header.md",
     "name.md",
@@ -103,10 +106,11 @@ const README_FILES: [&str; 7] = [
     "see.md",
 ];
 
-const OPTIONS: [&str; 72] = [
+const OPTIONS: [&str; 73] = [
     INIT,
     COMMIT,
     GENERATE_README,
+    OPEN_THE_PROJECT,
     CHECK_README_WORDS,
     DISPLAY_README,
     STASH,
@@ -1176,6 +1180,19 @@ fn remove_tags(r: &str) -> bool {
     }
     true
 }
+fn code(r: &str) -> bool {
+    Command::new(
+        std::env::var(CRATES_EDITOR)
+            .expect("CRATES_EDITOR missing")
+            .as_str(),
+    )
+    .stdout(Stdio::null())
+    .stderr(Stdio::null())
+    .arg(".")
+    .current_dir(r)
+    .spawn()
+    .is_ok()
+}
 fn flow(z: bool, r: &str) {
     loop {
         if z.eq(&false) {
@@ -1193,6 +1210,9 @@ fn flow(z: bool, r: &str) {
         match todo.as_str() {
             COMMIT => {
                 assert!(commit(r));
+            }
+            OPEN_THE_PROJECT => {
+                assert!(code(r));
             }
             GENERATE_README => {
                 assert!(generate_readme(r));
