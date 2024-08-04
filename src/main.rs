@@ -27,6 +27,7 @@ const CHECK_README_WORDS: &str = "Check readme words";
 const DISPLAY_README: &str = "Display readme";
 const GENERATE_README: &str = "Generate the README.md";
 const COMMIT: &str = "Add a commit";
+const CHANGE_OF_PROJECT: &str = "Change of project";
 const STASH: &str = "Stash modification";
 const QUIT: &str = "Quit";
 const SEND_TO_REMOTE: &str = "Send modifications to remotes";
@@ -107,9 +108,10 @@ const README_FILES: [&str; 7] = [
     "see.md",
 ];
 
-const OPTIONS: [&str; 73] = [
+const OPTIONS: [&str; 74] = [
     INIT,
     COMMIT,
+    CHANGE_OF_PROJECT,
     GENERATE_README,
     OPEN_THE_PROJECT,
     CHECK_README_WORDS,
@@ -1216,6 +1218,10 @@ fn flow(z: bool, r: &str) {
             OPEN_THE_PROJECT => {
                 assert!(code(r));
             }
+            CHANGE_OF_PROJECT => {
+                let r: String = init();
+                flow(zuu(r.as_str()), r.as_str());
+            }
             GENERATE_README => {
                 assert!(generate_readme(r));
             }
@@ -1359,9 +1365,14 @@ fn zazen_check(r: &str) {
         assert!(File::create(format!("{r}{MAIN_SEPARATOR_STR}README.md").as_str()).is_ok());
     }
 }
-fn main() {
+
+fn init() -> String {
     let r: String = repo();
-    assert!(set_current_dir(r.as_str()).is_ok());
     zazen_check(r.as_str());
+    assert!(set_current_dir(r.as_str()).is_ok());
+    r
+}
+fn main() {
+    let r: String = init();
     flow(zuu(r.as_str()), r.as_str());
 }
