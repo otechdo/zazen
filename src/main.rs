@@ -10,6 +10,7 @@ use git2::{
 use indicatif::{ProgressBar, ProgressStyle};
 use inquire::{Confirm, MultiSelect, Select, Text};
 use std::env::consts::OS;
+use std::env::set_current_dir;
 use std::fs::{self, read_to_string, remove_file, File};
 use std::io::Write;
 use std::path::Path;
@@ -366,7 +367,7 @@ fn msg(m: &str, r: &str) -> bool {
         .success()
 }
 fn commit(path: &str) -> bool {
-    assert!(zuu());
+    assert!(zuu(path));
     assert!(diff(path));
     let index = add(path);
     if index.is_none() {
@@ -566,10 +567,10 @@ fn discussions() -> String {
     x
 }
 
-fn fmt() {
+fn fmt(r: &str) {
     assert!(Command::new("cargo")
         .arg("fmt")
-        .current_dir(".")
+        .current_dir(r)
         .spawn()
         .unwrap()
         .wait()
@@ -578,10 +579,11 @@ fn fmt() {
     clear();
 }
 
-fn zuu() -> bool {
+fn zuu(r: &str) -> bool {
     clear();
-    if Path::new("Cargo.toml").exists() {
-        fmt();
+    let c: String = format!("{r}{MAIN_SEPARATOR_STR}Cargo.toml");
+    if Path::new(c.as_str()).exists() {
+        fmt(r);
         if Command::new("zuu")
             .current_dir(".")
             .spawn()
@@ -597,7 +599,7 @@ fn zuu() -> bool {
         return false;
     }
     clear();
-    true
+    false
 }
 
 fn version() -> String {
@@ -1060,15 +1062,15 @@ fn show_status(path: &str) {
         println!("{path}: {status:?}");
     }
 }
-fn print_readme() -> bool {
-    let r = "README.md";
+fn print_readme(r: &str) -> bool {
+    let r: String = format!("{r}{MAIN_SEPARATOR_STR}README.md");
     assert!(Command::new("bat")
         .arg("--force-colorization")
         .arg("--theme")
         .arg("Visual Studio Dark+")
         .arg("--style")
         .arg("plain")
-        .arg(r)
+        .arg(r.as_str())
         .stdout(File::create(CHECK_FILE).expect("failed to create output file"))
         .current_dir(".")
         .spawn()
@@ -1197,7 +1199,7 @@ fn flow(z: bool, r: &str) {
     loop {
         if z.eq(&false) {
             if confirm("Your code contains errors, do you want recheck it ?", true).eq(&true) {
-                return flow(zuu(), r);
+                return flow(zuu(r), r);
             }
             break;
         }
@@ -1221,7 +1223,7 @@ fn flow(z: bool, r: &str) {
                 assert!(verify_readme_part(r));
             }
             DISPLAY_README => {
-                assert!(print_readme());
+                assert!(print_readme(r));
             }
             QUIT => {
                 break;
@@ -1359,6 +1361,7 @@ fn zazen_check(r: &str) {
 }
 fn main() {
     let r: String = repo();
+    assert!(set_current_dir(r.as_str()).is_ok());
     zazen_check(r.as_str());
-    flow(zuu(), r.as_str());
+    flow(zuu(r.as_str()), r.as_str());
 }
