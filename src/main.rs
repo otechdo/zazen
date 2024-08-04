@@ -7,18 +7,23 @@ use git2::{
     BranchType, Branches, Commit, Diff, DiffFormat, DiffOptions, DiffStats, Index, Repository,
     Revwalk, Status, StatusOptions, Statuses,
 };
+use indicatif::{ProgressBar, ProgressStyle};
 use inquire::{Confirm, MultiSelect, Select, Text};
 use std::env::consts::OS;
-use std::fs::{self, read_to_string, File};
+use std::fs::{self, read_to_string, remove_file, File};
 use std::io::Write;
 use std::path::Path;
 use std::path::MAIN_SEPARATOR_STR;
 use std::process::Command;
+use std::thread::sleep;
+use std::time::Duration;
 use walkdir::WalkDir;
-
 const COMMIT_TEMPLATE: &str = "%type%(%scope%): %summary%\n\n\tThe following changes were made :\n\n%why%\n\n%footer%\n\n\tAuthored by :\n\n\t\t* %author% <%email%> the %date%\n";
 const CRATES_PATH: &str = "CRATES_PATH";
 const INIT: &str = "Init flow";
+const CHECK_README_WORDS: &str = "Check readme words";
+const DISPLAY_README: &str = "Display readme";
+const GENERATE_README: &str = "Generate the README.md";
 const COMMIT: &str = "Add a commit";
 const STASH: &str = "Stash modification";
 const QUIT: &str = "Quit";
@@ -88,9 +93,22 @@ const FINISH_RELEASE: &str = "Finnish a release";
 const PULL_RELEASE: &str = "Fetch a release";
 const PULL_HOTFIX: &str = "Fetch a hotfix";
 
-const OPTIONS: [&str; 69] = [
+const README_FILES: [&str; 7] = [
+    "header.md",
+    "name.md",
+    "synopsis.md",
+    "description.md",
+    "options.md",
+    "examples.md",
+    "see.md",
+];
+
+const OPTIONS: [&str; 72] = [
     INIT,
     COMMIT,
+    GENERATE_README,
+    CHECK_README_WORDS,
+    DISPLAY_README,
     STASH,
     QUIT,
     SEND_TO_REMOTE,
@@ -160,7 +178,7 @@ const OPTIONS: [&str; 69] = [
     GENERATE_CHANGE_LOG,
 ];
 
-const CHECK_COMMIT_FILE: &str = "zen";
+const CHECK_FILE: &str = "zen";
 
 const LANG: &str = "en_US";
 
@@ -235,14 +253,31 @@ const COMMITS_TYPES: [&str; 68] = [
     "Big Crunch: Reduction of codebase size or removal of features",
 ];
 
-fn check_commit(sentence: &str) -> bool {
-    let mut f: File = File::create(CHECK_COMMIT_FILE).expect("msg");
+fn check(sentence: &str, path: &str) -> bool {
+    let mut f: File = File::create(path).expect("msg");
     writeln!(f, "{sentence}").expect("msg");
     let o = Command::new("hunspell")
         .arg("-d")
         .arg(LANG)
         .arg("-l")
-        .arg(CHECK_COMMIT_FILE)
+        .arg(path)
+        .output()
+        .expect("msg")
+        .stdout;
+    if o.is_empty() {
+        return true;
+    }
+    arrange(path)
+}
+
+fn check_commit(sentence: &str) -> bool {
+    let mut f: File = File::create(CHECK_FILE).expect("msg");
+    writeln!(f, "{sentence}").expect("msg");
+    let o = Command::new("hunspell")
+        .arg("-d")
+        .arg(LANG)
+        .arg("-l")
+        .arg(CHECK_FILE)
         .output()
         .expect("msg")
         .stdout;
@@ -327,6 +362,7 @@ fn msg(m: &str, r: &str) -> bool {
         .success()
 }
 fn commit(path: &str) -> bool {
+    assert!(zuu());
     assert!(diff(path));
     let index = add(path);
     if index.is_none() {
@@ -350,19 +386,36 @@ fn arrange_commit() -> bool {
     let _ = Command::new("hunspell")
         .arg("-d")
         .arg(LANG)
-        .arg(CHECK_COMMIT_FILE)
+        .arg(CHECK_FILE)
         .spawn()
         .expect("Missing dic")
         .wait()
         .unwrap()
         .success();
     check_commit(
-        read_to_string(CHECK_COMMIT_FILE)
+        read_to_string(CHECK_FILE)
             .expect("failed to parse zen file")
             .as_str(),
     )
 }
 
+fn arrange(path: &str) -> bool {
+    let _ = Command::new("hunspell")
+        .arg("-d")
+        .arg(LANG)
+        .arg(path)
+        .spawn()
+        .expect("Missing dic")
+        .wait()
+        .unwrap()
+        .success();
+    check(
+        read_to_string(path)
+            .expect("failed to parse zen file")
+            .as_str(),
+        path,
+    )
+}
 fn program_or_lib() -> String {
     if read_to_string("Cargo.toml")
         .expect("no cargo project")
@@ -374,11 +427,17 @@ fn program_or_lib() -> String {
     }
 }
 fn create_changelog(r: &str) -> bool {
-    if Path::new("./logs").is_dir().eq(&false) {
-        fs::create_dir_all("./logs").expect("msg");
+    if Path::new(format!("{r}{MAIN_SEPARATOR_STR}zazen{MAIN_SEPARATOR_STR}logs").as_str())
+        .is_dir()
+        .eq(&false)
+    {
+        fs::create_dir_all(
+            format!("{r}{MAIN_SEPARATOR_STR}zazen{MAIN_SEPARATOR_STR}logs").as_str(),
+        )
+        .expect("msg");
     }
-    let filename = format!(
-        "{r}{MAIN_SEPARATOR_STR}logs{MAIN_SEPARATOR_STR}{}-{}-changes.md",
+    let filename: String = format!(
+        "{r}{MAIN_SEPARATOR_STR}zazen{MAIN_SEPARATOR_STR}logs{MAIN_SEPARATOR_STR}{}-{}-changes.md",
         project(),
         version()
     );
@@ -453,7 +512,7 @@ fn create_changelog(r: &str) -> bool {
     )
     .expect("msg");
     if Path::new("log").exists() {
-        fs::remove_file("log").expect("no log file");
+        remove_file("log").expect("no log file");
     }
     Path::new(filename.as_str()).exists()
 }
@@ -469,7 +528,7 @@ fn issues() -> String {
 }
 
 fn wiki() -> String {
-    let mut x = repository();
+    let mut x: String = repository();
     if x.contains("github") {
         x.push_str("/wiki");
     } else if x.contains("gitlab") {
@@ -526,6 +585,7 @@ fn zuu() -> bool {
             .wait()
             .unwrap()
             .success()
+            && verify_readme_part(".")
         {
             clear();
             return true;
@@ -920,10 +980,68 @@ fn send(path: &str) -> bool {
             .unwrap()
             .success()
 }
+
+fn verify_readme_part(r: &str) -> bool {
+    let pb: ProgressBar = ProgressBar::new(7)
+        .with_message("checking readme vocabulary")
+        .with_style(
+            ProgressStyle::default_bar()
+                .template("[{bar:50.white}] {msg}")
+                .expect("")
+                .progress_chars("== "),
+        );
+
+    pb.enable_steady_tick(Duration::from_millis(75));
+    for x in README_FILES {
+        pb.set_message(format!("Checking the {x} markdown file"));
+        let content: String = read_to_string(format!(
+            "{r}{MAIN_SEPARATOR_STR}zazen{MAIN_SEPARATOR_STR}readme{MAIN_SEPARATOR_STR}{x}"
+        ))
+        .expect("msg");
+        let path: String = format!(
+            "{r}{MAIN_SEPARATOR_STR}zazen{MAIN_SEPARATOR_STR}readme{MAIN_SEPARATOR_STR}{x}"
+        );
+        assert!(check(content.trim(), path.as_str()));
+        pb.inc(1);
+        sleep(Duration::from_millis(100));
+    }
+    true
+}
+fn generate_readme(r: &str) -> bool {
+    let mut f: File = File::create(format!("{r}{MAIN_SEPARATOR_STR}README.md").as_str())
+        .expect("failed to create readme");
+    for x in README_FILES {
+        let y: String = format!(
+            "{r}{MAIN_SEPARATOR_STR}zazen{MAIN_SEPARATOR_STR}readme{MAIN_SEPARATOR_STR}{x}"
+        );
+        assert!(writeln!(
+            f,
+            "{}\n",
+            read_to_string(y.as_str())
+                .expect("failed to parse file")
+                .trim()
+        )
+        .is_ok());
+    }
+    Command::new("pandoc")
+        .arg("-s")
+        .arg("-f")
+        .arg("markdown")
+        .arg("-t")
+        .arg("man")
+        .arg("README.md")
+        .arg("-o")
+        .arg(format!("{}.1", project()).as_str())
+        .current_dir(".")
+        .spawn()
+        .expect("pandoc")
+        .wait()
+        .unwrap()
+        .success()
+}
 fn show_status(path: &str) {
     let repo: Repository = open(path);
     let mut opts: StatusOptions = StatusOptions::new();
-
     let statuses = repo
         .statuses(Some(
             opts.include_ignored(false)
@@ -937,6 +1055,29 @@ fn show_status(path: &str) {
         let status = entry.status();
         println!("{path}: {status:?}");
     }
+}
+fn print_readme() -> bool {
+    let r = "README.md";
+    assert!(Command::new("bat")
+        .arg("--force-colorization")
+        .arg("--theme")
+        .arg("Visual Studio Dark+")
+        .arg("--style")
+        .arg("plain")
+        .arg(r)
+        .stdout(File::create(CHECK_FILE).expect("failed to create output file"))
+        .current_dir(".")
+        .spawn()
+        .expect("not bat or no README.md found")
+        .wait()
+        .unwrap()
+        .success());
+    println!(
+        "{}",
+        read_to_string(CHECK_FILE).expect("Failed to print README.md")
+    );
+    assert!(remove_file(CHECK_FILE).is_ok());
+    true
 }
 fn options() -> Vec<String> {
     let mut options: Vec<String> = Vec::new();
@@ -997,9 +1138,13 @@ fn clone() -> bool {
 }
 
 fn repo() -> String {
-    Select::new("Select a repository to manage", repositories())
+    let r: String = Select::new("Select a repository to manage", repositories())
         .prompt()
-        .unwrap()
+        .unwrap();
+    format!(
+        "{}{MAIN_SEPARATOR_STR}{r}",
+        std::env::var(CRATES_PATH).expect("CRATES_PATH missing")
+    )
 }
 
 fn display_branches(r: &str) -> bool {
@@ -1033,11 +1178,6 @@ fn remove_tags(r: &str) -> bool {
 }
 fn flow(z: bool, r: &str) {
     loop {
-        clear();
-        let rrr: String = format!(
-            "{}{MAIN_SEPARATOR_STR}{r}",
-            std::env::var(CRATES_PATH).expect("CRATES_PATH no set")
-        );
         if z.eq(&false) {
             if confirm("Your code contains errors, do you want recheck it ?", true).eq(&true) {
                 return flow(zuu(), r);
@@ -1052,7 +1192,16 @@ fn flow(z: bool, r: &str) {
         let todo: String = x.unwrap();
         match todo.as_str() {
             COMMIT => {
-                assert!(commit(rrr.as_str()));
+                assert!(commit(r));
+            }
+            GENERATE_README => {
+                assert!(generate_readme(r));
+            }
+            CHECK_README_WORDS => {
+                assert!(verify_readme_part(r));
+            }
+            DISPLAY_README => {
+                assert!(print_readme());
             }
             QUIT => {
                 break;
@@ -1061,28 +1210,28 @@ fn flow(z: bool, r: &str) {
                 assert!(clone());
             }
             SHOW_LOGS => {
-                assert!(logs(rrr.as_str()));
+                assert!(logs(r));
             }
             SHOW_DIFF => {
-                assert!(diff(rrr.as_str()));
+                assert!(diff(r));
             }
             SHOW_STATUS => {
-                assert!(display_status(rrr.as_str()));
+                assert!(display_status(r));
             }
             SEND_TO_REMOTE => {
-                assert!(send(rrr.as_str()));
+                assert!(send(r));
             }
             SHOW_BRANCHES => {
-                assert!(display_branches(rrr.as_str()));
+                assert!(display_branches(r));
             }
             REMOVE_BRANCHES => {
-                assert!(remove_branches(rrr.as_str()));
+                assert!(remove_branches(r));
             }
             REMOVE_RELEASE => {
-                assert!(remove_tags(rrr.as_str()));
+                assert!(remove_tags(r));
             }
             GENERATE_CHANGE_LOG => {
-                assert!(create_changelog(rrr.as_str()));
+                assert!(create_changelog(r));
             }
             _ => {
                 unreachable!();
@@ -1139,6 +1288,57 @@ fn logs(path: &str) -> bool {
     }
     true
 }
+fn zazen_check(r: &str) {
+    if Path::new(format!("{r}{MAIN_SEPARATOR_STR}zazen").as_str())
+        .is_dir()
+        .eq(&false)
+    {
+        fs::create_dir_all(format!("{r}{MAIN_SEPARATOR_STR}zazen").as_str())
+            .expect("failed to create readme direcory");
+    }
+    if Path::new(format!("{r}{MAIN_SEPARATOR_STR}zazen{MAIN_SEPARATOR_STR}readme").as_str())
+        .is_dir()
+        .eq(&false)
+    {
+        fs::create_dir_all(
+            format!("{r}{MAIN_SEPARATOR_STR}zazen{MAIN_SEPARATOR_STR}readme").as_str(),
+        )
+        .expect("failed to create readme direcory");
+    }
+    if Path::new(format!("{r}{MAIN_SEPARATOR_STR}zazen{MAIN_SEPARATOR_STR}logs").as_str())
+        .is_dir()
+        .eq(&false)
+    {
+        fs::create_dir_all(
+            format!("{r}{MAIN_SEPARATOR_STR}zazen{MAIN_SEPARATOR_STR}logs").as_str(),
+        )
+        .expect("failed to create logs direcory");
+    }
+    for file in README_FILES {
+        if Path::new(
+            format!(
+                "{r}{MAIN_SEPARATOR_STR}zazen{MAIN_SEPARATOR_STR}readme{MAIN_SEPARATOR_STR}{file}"
+            )
+            .as_str(),
+        )
+        .is_file()
+        .eq(&false)
+        {
+            assert!(File::create(
+                format!("{r}{MAIN_SEPARATOR_STR}zazen{MAIN_SEPARATOR_STR}readme{MAIN_SEPARATOR_STR}{file}").as_str(),
+            )
+            .is_ok());
+        }
+    }
+    if Path::new(format!("{r}{MAIN_SEPARATOR_STR}README.md").as_str())
+        .exists()
+        .eq(&false)
+    {
+        assert!(File::create(format!("{r}{MAIN_SEPARATOR_STR}README.md").as_str()).is_ok());
+    }
+}
 fn main() {
-    flow(zuu(), repo().as_str());
+    let r: String = repo();
+    zazen_check(r.as_str());
+    flow(zuu(), r.as_str());
 }

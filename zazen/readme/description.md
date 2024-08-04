@@ -1,19 +1,3 @@
----
-title: zazen(1)
-section: 1
-date: 2024-08-04
-manual: Zazen Manual
-source: Zazen Project
----
-
-# NAME
-
-zazen - offer a better workflow for developer using git and rust
-
-# SYNOPSIS
-
-zazen
-
 # DESCRIPTION
 
 What are they?
@@ -112,14 +96,3 @@ Automation and Tooling:
 Change log Generation: Many tools can automatically generate change logs or release notes by parsing commit messages. Cosmic commit types make this process even easier by providing a clear structure and consistent vocabulary that tools can easily understand.
 
 Issue Tracking Integration: If you reference issue numbers in your commit messages, some tools can automatically link commits to their corresponding issues, streamlining your workflow and keeping your project management tools up-to-date.
-
-# OPTIONS
-
-# EXAMPLES
-
-zazen
-
-# SEE ALSO
-
-git(1), cargo(1)
-
